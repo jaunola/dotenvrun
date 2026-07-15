@@ -23,6 +23,8 @@ func main() {
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
+	currentEnv := os.Environ()
+	cmd.Env = currentEnv
 
 	// read .env file and append to command struct Env field
 	f, err := os.ReadFile(".env")
