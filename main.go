@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 )
 
 func main() {
@@ -18,15 +19,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// init command struct
-	c := os.Args[1]
-	args := os.Args[2:]
-	cmd := exec.Command(c, args...)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	cmd.Stdin = os.Stdin
-	currentEnv := os.Environ()
-	cmd.Env = currentEnv
+	environment := os.Environ()
 
 	// read .env file and append to command struct Env field
 	f, err := os.ReadFile(".env")
@@ -42,25 +35,22 @@ func main() {
 		if !ok {
 			continue
 		}
-		cmd.Env = append(cmd.Env, key+"="+val)
+		environment = append(environment, key+"="+val)
 		envKeys = append(envKeys, key)
 	}
 	if bf.Err() != nil {
 		log.Fatalf("env parse failed: %s", err)
 	}
-	log.Printf("read %d .env variables: %s", len(envKeys), strings.Join(envKeys, ", "))
-	log.Printf("running prog %s...", cmd.Path)
-	// start program and wait
-	if err := cmd.Start(); err != nil {
-		log.Fatalf("cmd run failed: %s", err)
-	}
+	log.Printf(`read %d variables from ".env": %s`, len(envKeys), strings.Join(envKeys, ", "))
 
-	if err := cmd.Wait(); err != nil {
-		ee := err.(*exec.ExitError)
-		log.Printf("process exit code %d", ee.ExitCode())
-		os.Exit(ee.ExitCode())
+	// finally resolve command from PATH and Exec()
+	lp, err := exec.LookPath(os.Args[1])
+	if err != nil {
+		log.Fatalln(err)
 	}
-	os.Exit(0)
+	if err := syscall.Exec(lp, os.Args[1:], environment); err != nil {
+		log.Fatalf("syscall.Exec() failed: %s", err)
+	}
 }
 
 func getKeyVal(line string) (string, string, bool) {
