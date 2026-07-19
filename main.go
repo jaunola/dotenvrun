@@ -25,8 +25,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	environment := make([]string, 0, 5)
-	if *cleanEnv {
+	environment := getEnvForApp(*cleanEnv)
+
+	// resolve command from PATH and Exec()
+	lp, err := exec.LookPath(commandArguments[0])
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Printf("executing app: %s", lp)
+	if err := syscall.Exec(lp, commandArguments, environment); err != nil {
+		log.Fatalf("syscall.Exec() failed: %s", err)
+	}
+}
+
+func getEnvForApp(cleanEnv bool) []string {
+	var environment []string
+	if cleanEnv {
+		environment = make([]string, 0, 5)
 		defaultEnvs := []string{"HOME", "USER", "PWD", "TERM", "PATH", "LANG"}
 		for _, de := range defaultEnvs {
 			environment = append(environment, de+"="+os.Getenv(de))
@@ -34,6 +49,7 @@ func main() {
 	} else {
 		environment = os.Environ()
 	}
+
 	// read .env file and append to command struct Env field
 	f, err := os.ReadFile(".env")
 	if err != nil {
@@ -60,17 +76,10 @@ func main() {
 	}
 	log.Printf(`read %d variables from ".env": %s`, len(envKeys), strings.Join(envKeys, ", "))
 
-	// finally resolve command from PATH and Exec()
-	lp, err := exec.LookPath(commandArguments[0])
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Printf("executing app: %s", lp)
-	if err := syscall.Exec(lp, commandArguments, environment); err != nil {
-		log.Fatalf("syscall.Exec() failed: %s", err)
-	}
+	return environment
 }
 
+// getKeyVal splits by "=", trims spaces, ignores empties and comments and panics if value is quoted
 func getKeyVal(line string) (string, string, bool) {
 	key, val, ok := strings.Cut(line, "=")
 	key = strings.TrimSpace(key)
